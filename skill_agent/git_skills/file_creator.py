@@ -5,12 +5,17 @@ import requests
 import re
 import os
 import subprocess
+from skill_agent.state import WORK_DIR
 from config import OLLAMA_URL, MODEL_NAME
 
 def create_or_edit_file(file_path, task_description):
     """
     Создаёт или редактирует файл, учитывая его расширение.
     """
+    global WORK_DIR
+    if WORK_DIR and WORK_DIR != "." and not file_path.startswith(WORK_DIR):
+        file_path = os.path.join(WORK_DIR, file_path)
+        
     # Определяем язык по расширению
     ext = os.path.splitext(file_path)[1].lower()
     lang_prompt = {

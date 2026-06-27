@@ -1,0 +1,10 @@
+{
+  "skill": "skill_remover",
+  "timestamp": "20260625_184214",
+  "success": true,
+  "test_results": [
+    "✅ удаление → обработано",
+    "✅ скрипта → обработано"
+  ],
+  "code": "# skill_agent/handlers/skill_remover.py\n# Auto-generated: удаления скиллов: удаляет файл\n# Triggers: удаление, скрипта, удаления, файла\n# Created: 2026-06-25 18:42:14\n# DO NOT EDIT MANUALLY\n\nimport re\n\ndef handle_skill_remover(cmd, cmd_line, ask_ai_fn):\n    if any(t in cmd_line.lower() for t in [\"удаление\", \"скрипта\", \"удаления\", \"файла\"]):\n        print(\"Функция handle_skill_remover обработана\")\n        return True\n    else:\n        print(\"Функция handle_skill_remover не обработана\")\n        return False\n\nif __name__ == \"__main__\":\n    ask_ai_fn = lambda text: text  # Пример функции для запуска AI-запросов\n    cmd_line = \"удаление файла\"\n    result = handle_skill_remover(None, cmd_line, ask_ai_fn)\n    print(f\"Результат: {result}\")\n"
+}

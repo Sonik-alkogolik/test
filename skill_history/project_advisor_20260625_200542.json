@@ -1,0 +1,10 @@
+{
+  "skill": "project_advisor",
+  "timestamp": "20260625_200542",
+  "success": true,
+  "test_results": [
+    "⚠️ анализ → не распознано (False)",
+    "⚠️ проекта → не распознано (False)"
+  ],
+  "code": "# skill_agent/handlers/project_advisor.py\n# Auto-generated: анализа проекта и предложения улучшений: анализирует структуру\n# Triggers: анализ, проекта, предложения\n# Created: 2026-06-25 20:05:42\n# DO NOT EDIT MANUALLY\n\nimport re\n\ndef handle_project_advisor(cmd, cmd_line, ask_ai_fn):\n    if any(t in cmd_line.lower() for t in [\"анализ\", \"проекта\", \"предложения\"]):\n        try:\n            # Извлеки название скилла из cmd_line (re.search)\n            skill_name = re.search(r'skill\\s+(\\w+)', cmd_line).group(1)\n            \n            # Выполни действие с БД (sqlite3) или с файловой системой\n            # В этом примере будем просто выводить информацию\n            \n            # Выведи результат через print()\n            print(f\"Analyzing project and suggesting improvements for {skill_name}.\")\n            \n            return True\n        except Exception as e:\n            print(f\"Error during processing: {e}\")\n            return False\n"
+}

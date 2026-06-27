@@ -56,3 +56,13 @@ def git_pull(params=""):
         return "❌ Сначала выполните `git init`."
     branch = git_get_branch()
     return _run_git(f"git pull origin {branch}")
+    
+def git_remote_add(params=""):
+    """Добавляет remote origin"""
+    # params должен содержать URL, например: "https://github.com/user/repo.git"
+    url = params.strip()
+    if not url.startswith("http"):
+        return "⚠️ Укажи полный URL репозитория"
+    # Удаляем старый origin если есть
+    _run_git("git remote remove origin")
+    return _run_git(f"git remote add origin {url}")

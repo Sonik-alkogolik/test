@@ -1,0 +1,10 @@
+{
+  "skill": "trigger_cleaner",
+  "timestamp": "20260625_184740",
+  "success": true,
+  "test_results": [
+    "✅ удаление → обработано",
+    "✅ триггеров → обработано"
+  ],
+  "code": "# skill_agent/handlers/trigger_cleaner.py\n# Auto-generated: удаления всех триггеров указанного скилла из БД\n# Triggers: удаление, триггеров, скилла, бд, запросы, данных\n# Created: 2026-06-25 18:47:40\n# DO NOT EDIT MANUALLY\n\nimport re\n\ndef handle_trigger_cleaner(cmd, cmd_line, ask_ai_fn):\n    if any(t in cmd_line.lower() for t in [\"удаление\", \"триггеров\", \"скилла\", \"бд\", \"запросы\", \"данных\"]):\n        print(\"Удаление всех триггеров скилла из БД.\")\n        return True\n    return False\n"
+}

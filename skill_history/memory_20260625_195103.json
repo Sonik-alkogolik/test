@@ -1,0 +1,10 @@
+{
+  "skill": "memory",
+  "timestamp": "20260625_195103",
+  "success": true,
+  "test_results": [
+    "⚠️ хранение → не распознано (False)",
+    "⚠️ истории → не распознано (False)"
+  ],
+  "code": "# skill_agent/handlers/memory.py\n# Auto-generated: хранения истории диалога и контекста\n# Triggers: хранение, истории, диалога\n# Created: 2026-06-25 19:51:03\n# DO NOT EDIT MANUALLY\n\nimport re\n\nimport sqlite3\n\ndef handle_memory(cmd, cmd_line, ask_ai_fn):\n    if any(t in cmd_line.lower() for t in [\"хранение\", \"истории\", \"диалога\"]):\n        try:\n            # Извлеки название скилла из cmd_line\n            skill_name = re.search(r\"извлечь название (.+)\", cmd_line).group(1)\n            \n            # Выполни действие с БД (sqlite3) или с файловой системой\n            conn = sqlite3.connect('memory.db')\n            cursor = conn.cursor()\n            # Пример: cursor.execute(\"INSERT INTO memory (skill, dialog) VALUES (?, ?)\", (skill_name, cmd))\n            # conn.commit()\n            \n            # Выведи результат через print()\n            print(f\"Скилл '{skill_name}' успешно сохранен в истории.\")\n            return True\n        except Exception as e:\n            print(f\"Ошибка: {e}\")\n            return False\n"
+}

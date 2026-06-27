@@ -1,125 +1,141 @@
 # skill_agent/router.py
-# Здесь живёт вся логика управления командами
-
 import sys
 import os
 import json
 import re
+import importlib
+import sqlite3
 
-# Импортируем скиллы прямо здесь
-from skill_agent.git_skills.git_skills_add import git_init, git_add, git_commit, git_status, git_push, git_pull
-try:
-    from skill_agent.git_skills.file_creator import create_or_edit_file
-    from skill_agent.self_improve.skill_up import run_skill_up
-except ImportError:
-    pass
+sys.path.append(os.getcwd())
 
-def get_intent(user_text, ask_ai_fn):
-    """Распознает намерение через AI (если не сработала точная команда)"""
-    prompt = f"""Ты маршрутизатор. Верни JSON: {{"action": "create_file", "target": "файл", "params": "задача"}}
-Запрос: {user_text}"""
+from skill_agent.state import WORK_DIR
+from skill_agent.handlers.system import handle_system
+
+# Базовые хендлеры (для надёжности)
+from skill_agent.handlers.git import handle_git
+from skill_agent.handlers.file import handle_file
+from skill_agent.handlers.editor import handle_edit_method
+
+def load_skills_from_db():
+    """🔍 Динамически загружает скиллы и их триггеры из БД"""
+    db_path = os.path.join("skill_agent", "triggers", "triggers.db")
+    registry = []
+    
+    if os.path.exists(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name FROM skills")
+            skills = cursor.fetchall()
+            
+            for skill_id, name in skills:
+                cursor.execute("SELECT trigger_text FROM triggers WHERE skill_id = ?", (skill_id,))
+                triggers = [t[0] for t in cursor.fetchall()]
+                # Ограничиваем 15 триггерами, чтобы не перегружать контекст модели
+                triggers_str = ", ".join(triggers[:15]) if triggers else "универсальный запрос"
+                registry.append({
+                    "name": name,
+                    "description": f"Скилл '{name}'. Триггеры: {triggers_str}",
+                    "params": "cmd_line: str"
+                })
+            conn.close()
+        except Exception as e:
+            print(f"⚠️ Ошибка чтения БД: {e}")
+
+    # Fallback если БД пуста или недоступна
+    if not registry:
+        registry = [
+            {"name": "git", "description": "Git: init, add, commit, push, pull, status", "params": "cmd_line: str"},
+            {"name": "system", "description": "Системные: help, exit, workon, создай скилл", "params": "cmd_line: str"}
+        ]
+    return registry
+
+def get_ai_decision(cmd_line, ask_ai_fn):
+    """🧠 AI-маршрутизатор с динамическим реестром из БД"""
+    registry = load_skills_from_db()
+    tools_context = "\n".join([f"- {s['name']}: {s['description']}" for s in registry])
+    
+    prompt = f"""Ты — диспетчер AI-агента. Выбери инструмент по запросу пользователя.
+
+🛠 ДОСТУПНЫЕ ИНСТРУМЕНТЫ (загружены из БД):
+{tools_context}
+
+🗣 ЗАПРОС: "{cmd_line}"
+📁 Папка: {WORK_DIR}
+
+📋 ИНСТРУКЦИЯ:
+1. Если запрос подходит под описание/триггеры инструмента → верни:
+   {{"action": "имя_из_списка", "params": {{"cmd_line": "{cmd_line}"}}}}
+2. Если это вопрос/болтовня → верни:
+   {{"action": "chat", "params": {{"prompt": "{cmd_line}"}}}}
+3. ТОЛЬКО валидный JSON, без markdown, без пояснений.
+
+✅ ПРИМЕРЫ:
+"зафиксируй изменения" → {{"action": "git", "params": {{"cmd_line": "зафиксируй изменения"}}}}
+"создай скилл docker" → {{"action": "system", "params": {{"cmd_line": "создай скилл docker"}}}}
+"привет" → {{"action": "chat", "params": {{"prompt": "привет"}}}}
+
+Ответ:"""
+    
+    raw = ask_ai_fn(prompt).strip()
+    raw = re.sub(r'```json\s*', '', raw).replace('```', '').strip()
+    
     try:
-        raw = ask_ai_fn(prompt).replace("```json", "").replace("```", "").strip()
-        return json.loads(raw)
-    except:
-        return {"action": "chat", "target": "", "params": ""}
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+    except Exception as e:
+        print(f"⚠️ Ошибка парсинга JSON: {e}")
+    
+    return {"action": "chat", "params": {"prompt": cmd_line}}
+
+def execute_action(decision, ask_ai_fn):
+    """👐 Динамически загружает и вызывает хендлер"""
+    action = decision.get("action", "chat")
+    params = decision.get("params", {})
+    cmd_line = params.get("cmd_line", "")
+
+    if action == "chat":
+        print("🤖", ask_ai_fn(params.get("prompt", "")))
+        return
+
+    try:
+        module = importlib.import_module(f"skill_agent.handlers.{action}")
+        handler = getattr(module, f"handle_{action}", None)
+        
+        if not handler:
+            print(f"⚠️ В модуле '{action}' нет функции handle_{action}")
+            return
+        
+        cmd = cmd_line.strip().lower()
+        # Адаптер сигнатур: пробуем 3 аргумента → 2 аргумента
+        try:
+            handler(cmd, cmd_line, ask_ai_fn)
+        except TypeError:
+            handler(cmd_line, ask_ai_fn)
+            
+    except ModuleNotFoundError:
+        print(f"⚠️ Скилл '{action}' не найден. Попробуй: 'создай скилл {action} для ...'")
+    except Exception as e:
+        print(f"❌ Ошибка '{action}': {e}")
+        print("💡 Попробуй перефразировать или 'help'")
 
 def run_command(cmd_line, ask_ai_fn):
-    """
-    Обрабатывает команду пользователя.
-    ask_ai_fn — функция для запросов к модели (передается из agent.py)
-    """
-    # 🔧 Нормализация: приводим всё к нижнему регистру и чистим
+    """Главная точка входа."""
     cmd = cmd_line.strip().lower()
     
-    # 1. Исправляем опечатки и транслит
-    fixes = {
-        "сделй": "сделай", "гит": "git", "инит": "init", "адд": "add",
-        "пуш": "push", "пулл": "pull", "статус": "status", "чек": "check",
-        "закоммить": "commit", "закоммитить": "commit", "закоммичу": "commit",
-        "зафиксируй": "commit", "зафиксируйте": "commit", "зафиксируем": "commit", "зафиксировать": "commit",
-        "добавь": "add", "добавьте": "add", "добавим": "add", "добавить": "add",
-        "сохрани": "commit", "сохраните": "commit", "сохраним": "commit",
-        "отправь": "push", "отправьте": "push", "отправим": "push", "залей": "push", "залейте": "push",
-        "забери": "pull", "заберите": "pull", "обнови": "pull", "обновите": "pull",
-        "инициализируй": "init", "инициализировать": "init"
-    }
-    for wrong, right in fixes.items():
-        cmd = cmd.replace(wrong, right)
-    
-    # 🔥 ПРИОРИТЕТ 1: Системные команды
-    if "skillup" in cmd:
-        print("🧠 Запускаю skillUP...")
-        if run_skill_up: run_skill_up()
-        else: print("❌ Модуль skill_up не загружен!")
-        return
-    
+    # 🛑 Аварийные команды (без AI, 100% надёжно)
     if cmd in ["exit", "выход", "quit"]:
         print("👋 Пока!"); sys.exit(0)
-    
     if cmd in ["help", "помощь", "?"]:
-        print("📖 Команды: skillup, create file X.php with Y, git init/add/commit/push, help, exit")
+        print("📖 Я сам решаю, что делать. Просто напиши, что нужно.")
         return
 
-    # 🔥 ПРИОРИТЕТ 2: Git-команды (максимально гибкий детектор)
-    # Проверяем наличие слова "git" ИЛИ русских синонимов + действие
-    is_git_cmd = ("git" in cmd) or ("гит" in cmd_line.lower())
-    
-    if is_git_cmd:
-        # Определяем действие по ключевым словам
-        if "init" in cmd or "инициализ" in cmd_line.lower():
-            print(git_init())
-            return
-        elif "add" in cmd or "индекс" in cmd_line.lower():
-            print(git_add("."))
-            return
-        elif "commit" in cmd or "фикс" in cmd_line.lower() or "сохран" in cmd_line.lower():
-            # Извлекаем сообщение коммита
-            msg = "auto update"
-            import re
-            # Ищем текст в кавычках
-            quotes = re.search(r'["\'](.+?)["\']', cmd_line)
-            if quotes:
-                msg = quotes.group(1)
-            else:
-                # Если нет кавычек, берём всё после слова "commit" или "зафикси"
-                for marker in ["commit", "зафикси", "сохрани"]:
-                    if marker in cmd_line.lower():
-                        parts = cmd_line.lower().split(marker, 1)
-                        if len(parts) > 1:
-                            candidate = parts[1].strip().strip('"').strip("'")
-                            if candidate and len(candidate) < 100:
-                                msg = candidate
-                                break
-            print(git_commit(msg))
-            return
-        elif "push" in cmd or "отправ" in cmd_line.lower() or "залей" in cmd_line.lower():
-            print(git_push())
-            return
-        elif "pull" in cmd or "забери" in cmd_line.lower() or "обнов" in cmd_line.lower():
-            print(git_pull())
-            return
-        elif "status" in cmd:
-            print(git_status())
-            return
-
-    # 🔥 ПРИОРИТЕТ 3: Блокировка случайного создания файлов
-    if "create file" not in cmd and "создай файл" not in cmd:
-        print("🤖", ask_ai_fn(f"Ответь кратко на: {cmd_line}"))
+    # 🏭 Фабрика скиллов (жёсткий триггер, обходим AI)
+    if any(x in cmd for x in ["создай скилл", "create skill", "новый скилл"]):
+        handle_system(cmd, cmd_line, ask_ai_fn)
         return
 
-    # 🔥 ПРИОРИТЕТ 4: Создание файлов через AI
-    intent = get_intent(cmd_line, ask_ai_fn)
-    action = intent.get("action", "chat")
-    target = intent.get("target", "")
-    params = intent.get("params", "")
-
-    if action == "create_file":
-        print(f"📝 Создаю файл: {target}")
-        if create_or_edit_file:
-            success, msg = create_or_edit_file(target, params)
-            print(msg)
-        else:
-            print("❌ Модуль file_creator не загружен!")
-    else:
-        print("🤖", ask_ai_fn(f"Ответь кратко: {cmd_line}"))
+    # 🤖 Остальное → AI-маршрутизация (реестр берётся из БД)
+    decision = get_ai_decision(cmd_line, ask_ai_fn)
+    execute_action(decision, ask_ai_fn)

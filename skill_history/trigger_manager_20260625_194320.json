@@ -1,0 +1,9 @@
+{
+  "skill": "trigger_manager",
+  "timestamp": "20260625_194320",
+  "success": false,
+  "test_results": [
+    "❌ Ошибка выполнения: invalid syntax (<string>, line 22)"
+  ],
+  "code": "# skill_agent/handlers/trigger_manager.py\n# Auto-generated: управления триггерами: показывать\n# Triggers: показать\n# Created: 2026-06-25 19:43:20\n# DO NOT EDIT MANUALLY\n\nimport re\n\ndef handle_trigger_manager(cmd, cmd_line, ask_ai_fn):\n    if \"показать\" in cmd_line.lower():\n        try:\n            # Извлекаем название скилла из cmd_line\n            skill_name = re.search(r'\\b\\w+\\b', cmd_line).group()\n            \n            # Выполняем действие с БД (sqlite3) или с файловой системой\n            # Это только пример, нужно заменить на реальный код\n            result = f\"Извините, но я не могу найти информацию о {skill_name}.\"\n            \n            # Выводим результат через print()\n            print(result)\n        except Exception as e:\n            # Обрабатываем ошибки\n            print(f\"Ошибка: {e}\")\n        return True\n\n    return False\n\nЭта функция проверяет, если в командной строке есть подстрока \"показать\", затем извлекает название скилла и выполняет действия с БД (в данном случае выводит результат). Если произошла ошибка, она обрабатывается и выводится сообщение об ошибке.\n"
+}

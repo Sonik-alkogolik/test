@@ -1,0 +1,17 @@
+# Игнорировать тяжелые папки проектов
+showcase-designer/vendor/
+showcase-designer/node_modules/
+showcase-designer/storage/logs/
+showcase-designer/storage/framework/cache/
+showcase-designer/.env
+showcase-designer/bootstrap/cache/
+
+# Python
+__pycache__/
+*.pyc
+*.bak
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -4,15 +4,28 @@ import sqlite3
 import os
 import subprocess
 
+def _run(cmd):
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    return r.stdout.strip() or r.stderr.strip()
+
+# Рабочие fallback-функции (подменятся импортом, если он есть)
+git_init = lambda: _run("git init")
+git_add = lambda p=".": _run(f"git add {p}")
+git_commit = lambda m: _run(f'git commit -m "{m}"')
+git_status = lambda: _run("git status")
+git_push = lambda: _run("git push")
+git_pull = lambda: _run("git pull")
+git_remote_add = lambda u: _run(f"git remote add origin {u}")
+
 try:
     from skill_agent.git_skills.git_skills_add import (
         git_init, git_add, git_commit, git_status, git_push, git_pull, git_remote_add
     )
 except ImportError:
-    git_init = git_add = git_commit = git_status = git_push = git_pull = lambda *a: "❌ Git скиллы не загружены"
+    pass  # Оставляем subprocess-версии
 
 def load_git_triggers():
-    """Загружает триггеры из БД. Формат в БД: action:слово (напр. commit:зафиксируй)"""
+    """Загружает триггеры из БД. Формат в БД: action:слово"""
     db_path = os.path.join("skill_agent", "triggers", "triggers.db")
     triggers = {"commit": [], "restore": [], "push": [], "pull": [], "status": [], "init": []}
 

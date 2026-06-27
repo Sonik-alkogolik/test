@@ -1,6 +1,9 @@
 # agent.py
 import sys
 import os
+import shutil
+for root, dirs, _ in os.walk('.'):
+    if '__pycache__' in dirs: shutil.rmtree(os.path.join(root, '__pycache__'), ignore_errors=True)
 import requests
 import subprocess
 import time
